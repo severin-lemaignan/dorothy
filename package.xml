@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package>
+  <name>dorothy</name>
+  <version>0.1.0</version>
+  <description>Launch files and configurations for the DoRoThy project</description>
+  <maintainer email="severin.lemaignan@plymouth.ac.uk">Séverin Lemaignan</maintainer>
+
+  <license>BSD</license>
+
+  <author>Séverin Lemaignan</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <run_depend>ros_markers</run_depend>
+  <run_depend>gazr</run_depend>
+  <run_depend>naoqi_driver</run_depend>
+
+</package>
