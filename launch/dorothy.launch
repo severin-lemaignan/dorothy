@@ -1,0 +1,51 @@
+<launch>
+
+  <arg name="with_robot"          default="true" />
+  <arg name="nao_ip"              default="$(optenv NAO_IP 127.0.0.1)" />
+  <arg name="nao_port"            default="$(optenv NAO_PORT 9559)" />
+
+  <arg name="roscore_ip"          default="127.0.0.1" />
+  <arg name="network_interface"   default="eth0" />
+
+  <arg name="markers_configuration" default="$(find dorothy)/config/chilitags_config.yml" />
+
+  <group if="$(arg with_robot)">
+
+    <!-- naoqi driver -->
+    <include file="$(find naoqi_driver)/launch/naoqi_driver.launch" >
+        <arg name="nao_ip"            value="$(arg nao_ip)" />
+        <arg name="nao_port"          value="$(arg nao_port)" />
+        <arg name="roscore_ip"        value="$(arg roscore_ip)" />
+        <arg name="network_interface" value="$(arg network_interface)" />
+    </include>
+  </group>
+
+  <group unless="$(arg with_robot)">
+
+    <arg name="camera_device" default="/dev/video0" /> <!-- only used if using external camera -->
+    <!-- Start the GSCAM camera driver -->
+    <include file="$(find gscam)/v4l.launch" >
+        <arg name="DEVICE" value="$(arg camera_device)"/>
+    </include>
+
+
+  </group>
+
+  <!-- Sets the image source. -->
+  <arg name="image" if="$(arg with_robot)" default="/naoqi_driver_node/camera/front/image_raw" />
+  <!-- Sets the image source. -->
+  <arg name="image" unless="$(arg with_robot)" default="/v4l/camera/image_raw" />
+
+
+  <include file="$(find ros_markers)/detect.launch" >
+    <arg name="markers_configuration" value="$(arg markers_configuration)" />
+    <arg name="omit_other_tags" default="true" />
+    <arg name="image_topic" value="$(arg image)" />
+  </include>
+
+  <node pkg="gazr" type="estimate" name="gazr">
+    <param name="face_model" value="$(find gazr)/shape_predictor_68_face_landmarks.dat" />
+    <remap from="/image" to="$(arg image)"/>
+  </node>
+
+</launch>
