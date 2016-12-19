@@ -1,0 +1,94 @@
+#!/usr/bin/env python
+import rospy
+
+import actionlib
+
+from geometry_msgs.msg import PoseStamped, Point
+from visualization_msgs.msg import MarkerArray, Marker
+import zoo_map_maker.msg
+
+MAP_HEIGHT=0.335
+
+REFERENCE_FRAME="/sandtray"
+
+ZONES = {
+        "lake": [(5.8,17.), (11.,16.),(14.7,12.8),(18.3,9.),(15.,0.5),(7.8,1.5),(2.3,6.3),(2.1,11.8)]
+        }
+
+#ANIMALS = ["zebra","elephant","leopard","lion","giraffe","rhino","crocodile","hippo"]
+ANIMALS = ["zebra"]
+
+def to_map(p):
+    x,y = p
+    return x/100, -(MAP_HEIGHT - y/100)
+
+def publish_zones():
+
+    markers = MarkerArray()
+
+    id=0
+    for zone, poly in ZONES.items():
+
+        marker = Marker()
+        marker.header.frame_id = REFERENCE_FRAME
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "zoo_zones"
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+
+        marker.id = id
+        id += 1
+        marker.type = Marker.LINE_STRIP
+        marker.scale.x = 0.005
+        marker.color.g = 1.0
+        marker.color.a = 1.0
+
+
+        for v in poly:
+            x,y=to_map(v)
+            p = Point(x=x, y=y)
+            marker.points.append(p)
+
+        marker.points.append(marker.points[0])
+
+        markers.markers.append(marker)
+
+    pub_markers.publish(markers)
+
+
+
+
+
+def get_point_in_zone(zone):
+    poly = ZONES[zone]
+
+    x=0; y=0
+    for p in poly:
+        dx, dy = to_map(p)
+        x+=dx
+        y+=dy
+
+    return Point(x=x/len(poly), y=y/len(poly))
+
+
+if __name__ == "__main__":
+
+    rospy.init_node('zoo_player')
+
+    pub_markers = rospy.Publisher("zones", MarkerArray, queue_size=5, latch=True);
+
+    motion = actionlib.SimpleActionClient('zoo_trajectory_tracker', zoo_map_maker.msg.ZooNavigationAction)
+    motion.wait_for_server()
+
+    publish_zones()
+
+    rospy.loginfo("Ready to play!")
+
+    for animal in ANIMALS:
+        zone = "lake"
+        rospy.loginfo("Sending %s to %s" % (animal, zone))
+        goal = zoo_map_maker.msg.ZooNavigationGoal(item=animal,goal=get_point_in_zone(zone))
+        motion.send_goal(goal)
+        motion.wait_for_result()
+        rospy.sleep(1)
+

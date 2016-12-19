@@ -11,7 +11,9 @@ find_package(catkin REQUIRED COMPONENTS
         image_transport 
         image_geometry 
         nodelet
-        chilitags_catkin)
+        chilitags_catkin
+        zoo_map_maker
+        )
 
 catkin_package()
 
@@ -32,6 +34,9 @@ install(TARGETS sandtray_localisation
    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+catkin_install_python(PROGRAMS nodes/play_zoo
+    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(FILES
     launch/dorothy.launch
