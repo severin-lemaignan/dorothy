@@ -1,0 +1,103 @@
+#!/usr/bin/env python
+"""
+Listens for 3D points and points at them via naoqi SDK.
+
+Requires a running robot/simulation with ALNetwork proxies.
+
+"""
+from naoqi import ALModule, ALBroker, ALProxy
+from geometry_msgs.msg import PoseStamped
+import rospy
+import tf
+import motion
+
+tl = None
+
+def on_pose(target):
+    global tl
+
+    rospy.loginfo("got pose at "+str(rospy.Time.now())) 
+    if(hasFallen == False): #no harm in executing trajectory
+        if(effector == "LArm"):
+            motionProxy.openHand("LHand");
+            roll = -1.7; #rotate wrist to the left (about the x axis, w.r.t. robot frame)
+        else:
+            motionProxy.openHand("RHand");
+            roll = 1.7; #rotate wrist to the right (about the x axis, w.r.t. robot frame)
+
+        target.header.stamp = rospy.Time()
+        target_robot = tl.transformPose("/base_footprint",target)
+
+        #wait until time instructed to start executing
+        #rospy.sleep(traj.header.stamp-rospy.Time.now())#+rospy.Duration(timeToStartPosition));
+        rospy.loginfo("Pointing to pose at "+str(rospy.Time.now()))
+
+        startTime = rospy.Time.now()
+
+        trackerProxy.pointAt(effector,[target_robot.pose.position.x, target_robot.pose.position.y, target_robot.pose.position.z],motion.FRAME_ROBOT,1)
+        rospy.loginfo("Time taken to point: "+str((rospy.Time.now()-startTime).to_sec()));
+
+    else:
+        rospy.loginfo("Got pose but not allowed to execute it because I've fallen");
+
+class FallResponder(ALModule):
+  """ Module to react to robotHasFallen events """
+  
+  def __init__(self, name, motionProxy, memoryProxy):
+      ALModule.__init__(self, name)
+      self.motionProxy = motionProxy;
+      memoryProxy.subscribeToEvent("robotHasFallen",name,self.has_fallen.__name__);
+      rospy.loginfo("Subscribed to robotHasFallen event");
+  def has_fallen(self, *_args):
+      global hasFallen
+      hasFallen = True;
+      self.motionProxy.killAll();
+      rospy.loginfo("Stopped task");
+      
+if __name__ == "__main__":
+    rospy.init_node("nao_writer");
+    
+    POSES_TOPIC = rospy.get_param('~poses_input_topic','/poses')    
+    NAO_IP = rospy.get_param('~nao_ip','127.0.0.1'); #default behaviour is 
+                                        #to connect to simulator locally
+    NAO_HANDEDNESS = rospy.get_param('~nao_handedness','right')
+    if(NAO_HANDEDNESS.lower()=='right'):
+        effector   = "RArm"
+    elif(NAO_HANDEDNESS.lower()=='left'):
+        effector = "LArm"
+    else: 
+        rospy.logerr('error in handedness param')
+
+    tl = tf.TransformListener()
+    while not tl.frameExists("/base_footprint"):
+        rospy.logwarn("Waiting for frame /base_footprint to be published...")
+        rospy.sleep(0.5)
+
+
+    # We need this broker to be able to construct
+    # NAOqi modules and subscribe to other modules
+    # The broker must stay alive until the program exists
+    port = 9559;
+    myBroker = ALBroker("myBroker", #I'm not sure that pyrobots doesn't already have one of these open called NAOqi?
+        "0.0.0.0",   # listen to anyone
+        0,           # find a free port and use it
+        NAO_IP,      # parent broker IP
+        port)        # parent broker port
+    hasFallen = False;
+    motionProxy = ALProxy("ALMotion", NAO_IP, port);
+    trackerProxy = ALProxy("ALTracker", NAO_IP, port);
+    memoryProxy = ALProxy("ALMemory", NAO_IP, port);
+    postureProxy = ALProxy("ALRobotPosture", NAO_IP, port)
+    fallResponder = FallResponder("fallResponder",motionProxy,memoryProxy);
+
+    poses_sub = rospy.Subscriber(POSES_TOPIC, PoseStamped, on_pose)
+    
+    motionProxy.wbEnableEffectorControl(effector,False); #if robot has fallen it will have a hard time getting up if the effector is still trying to be kept in a particular position
+    postureProxy.goToPosture("StandInit", 0.2)
+
+
+    motionProxy.wbEnableEffectorControl(effector,True);
+    rospy.sleep(2)
+
+    rospy.spin()
+    myBroker.shutdown()
