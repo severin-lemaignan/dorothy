@@ -12,11 +12,21 @@ MAP_HEIGHT=0.335
 REFERENCE_FRAME="/sandtray"
 
 ZONES = {
-        "lake": [(5.8,17.), (11.,16.),(14.7,12.8),(18.3,9.),(15.,0.5),(7.8,1.5),(2.3,6.3),(2.1,11.8)]
+        "lake": [(5.8,17.), (11.,16.),(14.7,12.8),(18.3,9.),(15.,0.5),(7.8,1.5),(2.3,6.3),(2.1,11.8)],
+        "savannah": [(45.,33.),(46.8,25.5),(53.3,22.),(60.,22.1),(60.,33.5)],
+        "plain": [(40.,0.),(36.3,5.1),(41.5,11.7),(50.5,13.),(54.,0.)]
         }
 
-#ANIMALS = ["zebra","elephant","leopard","lion","giraffe","rhino","crocodile","hippo"]
-ANIMALS = ["zebra"]
+HABITATS = {"crocodile": "lake",
+            "leopard": "savannah",
+            "giraffe": "savannah",
+            "rhino": "plain",
+            "hippo": "lake",
+            "zebra": "plain",
+            "elephant": "plain",
+            "lion": "savannah"
+            }
+ANIMALS = ["zebra","elephant","leopard","lion","giraffe","rhino","crocodile","hippo"]
 
 def to_map(p):
     x,y = p
@@ -85,7 +95,7 @@ if __name__ == "__main__":
     rospy.loginfo("Ready to play!")
 
     for animal in ANIMALS:
-        zone = "lake"
+        zone = HABITATS[animal]
         rospy.loginfo("Sending %s to %s" % (animal, zone))
         goal = zoo_map_maker.msg.ZooNavigationGoal(item=animal,goal=get_point_in_zone(zone))
         motion.send_goal(goal)
