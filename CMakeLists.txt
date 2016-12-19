@@ -3,7 +3,7 @@ project(dorothy)
 
 find_package(catkin REQUIRED COMPONENTS 
         naoqi_driver
-        gazr 
+        # gazr 
         ros_markers
         std_msgs
         tf 
@@ -41,10 +41,5 @@ catkin_install_python(PROGRAMS nodes/play_zoo
 install(FILES
     launch/dorothy.launch
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
-)
-
-install(FILES
-    config/chilitags_config.yml
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
 )
 
