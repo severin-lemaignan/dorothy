@@ -84,13 +84,21 @@ def is_on_slot(point):
             return True
     return False
 
-def get_empty_slot():
+def get_empty_slot(close_to=None):
 
-    random.shuffle(BLOCKS_SLOTS)
-    for slot in BLOCKS_SLOTS:
+    if close_to:
+        slots = sorted(BLOCKS_SLOTS, cmp=lambda x, y: cmp(dist(x, close_to), dist(y, close_to)))
+    else:
+        slots = random.sample(BLOCKS_SLOTS, len(BLOCKS_SLOTS))
+
+    for slot in slots:
+        slot_occupied=False
         for k,v in blocks_positions.items():
-            if dist(slot,(v[0],v[1])) > EPSILON_TO_BLOCK_SLOT:
-                return slot
+            if dist(slot,(v[0],v[1])) < EPSILON_TO_BLOCK_SLOT:
+                slot_occupied=True
+                break;
+        if not slot_occupied:
+            return slot
     return None
 
 
@@ -205,24 +213,24 @@ def place_random_animal():
         motion.send_goal(goal)
         motion.wait_for_result()
 
-        return True
+        return True, (x,y)
 
-    return False
+    return False, None
 
-def place_block():
+def place_block(close_to=None):
 
     update_blocks_poses()
-    slot = get_empty_slot()
+    slot = get_empty_slot(close_to)
     if not slot:
         rospy.loginfo("All slots occupied!")
-        return False
+        return False, None
 
     rospy.loginfo("Moving a block to slot %s" % str(slot))
     block = find_closest_block(slot)
 
     if not block:
         rospy.loginfo("No block is available!")
-        return False
+        return False, None
 
     rospy.loginfo("Closest block is %s" % block)
 
@@ -231,7 +239,7 @@ def place_block():
     motion.send_goal(goal)
     motion.wait_for_result()
 
-    return True
+    return True, slot
 
 
 
@@ -250,10 +258,12 @@ if __name__ == "__main__":
 
     rospy.loginfo("Ready to play!")
 
+    last_pose=None
+
     while not rospy.is_shutdown():
  
         #ok = place_random_animal()
-        ok = place_block()
+        ok, last_pose = place_block(last_pose)
         if ok:
             rospy.sleep(1)
         else:
