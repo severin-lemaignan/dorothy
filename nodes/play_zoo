@@ -14,13 +14,24 @@ import zoo_map_maker.msg
 
 MAP_HEIGHT=0.335
 
+ARMS_REACH=0.3 #in meters
+
 REFERENCE_FRAME="/sandtray"
 
+BLOCKS_SLOTS=[(0.358,-0.259),(0.098,-0.160),(0.431,-0.198),(0.537,-0.316),(0.435,-0.015),(0.510,-0.121),(0.121,-0.019),(0.519,-0.222),(0.213,-0.189),(0.261,-0.171),(0.439,-0.063),(0.296,-0.204),(0.177,-0.309),(0.087,-0.318),(0.477,-0.197),(0.084,-0.102),(0.188,-0.261),(0.138,-0.187),(0.535,-0.268),(0.133,-0.328),(0.388,-0.222),(0.562,-0.125),(0.039,-0.087),(0.052,-0.161),(0.025,-0.199),(0.026,-0.244),(0.223,-0.243),(0.361,-0.309),(0.117,-0.063),(0.278,-0.248),(0.178,-0.215),(0.042,-0.298),(0.465,-0.102)]
+
+# in cm, origin at bottom left (Inkscape convention for SVG)
 ZONES = {
         "lake": [(5.8,17.), (11.,16.),(14.7,12.8),(18.3,9.),(15.,0.5),(7.8,1.5),(2.3,6.3),(2.1,11.8)],
         "savannah": [(45.,33.),(46.8,25.5),(53.3,22.),(60.,22.1),(60.,33.5)],
         "plain": [(40.,0.),(36.3,5.1),(41.5,11.7),(50.5,13.),(54.,0.)]
         }
+
+
+EPSILON_TO_BLOCK_SLOT=0.02
+
+# hold: cube_XX: (x,y,on_slot[bool])
+blocks_positions={}
 
 def to_map(p):
     x,y = p
@@ -52,6 +63,53 @@ def get_pose(item):
         return 0.,0.
 
     return trans[0], trans[1]
+
+def update_blocks_poses():
+    for f in tl.getFrameStrings():
+        if "cube_" in f:
+
+            try:
+                (trans,rot) = tl.lookupTransform(REFERENCE_FRAME, f, rospy.Time(0))
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+                rospy.logerr("TF exception! " + e.value())
+                continue
+
+            x, y = trans[0], trans[1]
+
+            blocks_positions[f] = (x,y, is_on_slot((x,y)))
+
+def is_on_slot(point):
+    for slot in BLOCKS_SLOTS:
+        if dist(slot, point) < EPSILON_TO_BLOCK_SLOT:
+            return True
+    return False
+
+def get_empty_slot():
+
+    random.shuffle(BLOCKS_SLOTS)
+    for slot in BLOCKS_SLOTS:
+        for k,v in blocks_positions.items():
+            if dist(slot,(v[0],v[1])) > EPSILON_TO_BLOCK_SLOT:
+                return slot
+    return None
+
+
+def find_closest_block(p):
+
+    x,y=p
+    closest=None
+    shortest_distance=10000
+
+    for k, v in blocks_positions.items():
+        if v[2]: # the block is already on a slot
+            continue
+        if dist(p,(v[0],v[1])) < shortest_distance:
+            closest=k
+            shortest_distance=dist(p,v)
+
+    return closest
+
+
 
 def isin(point,polygon):
     """
@@ -151,6 +209,32 @@ def place_random_animal():
 
     return False
 
+def place_block():
+
+    update_blocks_poses()
+    slot = get_empty_slot()
+    if not slot:
+        rospy.loginfo("All slots occupied!")
+        return False
+
+    rospy.loginfo("Moving a block to slot %s" % str(slot))
+    block = find_closest_block(slot)
+
+    if not block:
+        rospy.loginfo("No block is available!")
+        return False
+
+    rospy.loginfo("Closest block is %s" % block)
+
+    p = Point(x=slot[0], y=slot[1])
+    goal = zoo_map_maker.msg.ZooNavigationGoal(item=block,goal=p)
+    motion.send_goal(goal)
+    motion.wait_for_result()
+
+    return True
+
+
+
 if __name__ == "__main__":
 
     rospy.init_node('zoo_player')
@@ -168,7 +252,8 @@ if __name__ == "__main__":
 
     while not rospy.is_shutdown():
  
-        ok = place_random_animal()
+        #ok = place_random_animal()
+        ok = place_block()
         if ok:
             rospy.sleep(1)
         else:
