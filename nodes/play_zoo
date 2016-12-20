@@ -12,6 +12,10 @@ from geometry_msgs.msg import PoseStamped, Point
 from visualization_msgs.msg import MarkerArray, Marker
 import zoo_map_maker.msg
 
+ANIMAL_PLACEMENT=0
+BLOCK_PLACEMENT=1
+GAME_ACTIONS=[ANIMAL_PLACEMENT, BLOCK_PLACEMENT]
+
 MAP_HEIGHT=0.335
 
 ARMS_REACH=0.3 #in meters
@@ -59,7 +63,7 @@ def get_pose(item):
     try:
         (trans,rot) = tl.lookupTransform(REFERENCE_FRAME, item, rospy.Time(0))
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
-        rospy.logerr("TF exception! " + e.value())
+        rospy.logerr("TF exception! " + str(e))
         return 0.,0.
 
     return trans[0], trans[1]
@@ -71,7 +75,7 @@ def update_blocks_poses():
             try:
                 (trans,rot) = tl.lookupTransform(REFERENCE_FRAME, f, rospy.Time(0))
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
-                rospy.logerr("TF exception! " + e.value())
+                rospy.logerr("TF exception! " + str(e))
                 continue
 
             x, y = trans[0], trans[1]
@@ -259,13 +263,22 @@ if __name__ == "__main__":
     rospy.loginfo("Ready to play!")
 
     last_pose=None
+    action_idx=0
 
     while not rospy.is_shutdown():
  
-        #ok = place_random_animal()
-        ok, last_pose = place_block(last_pose)
+        current_action = GAME_ACTIONS[action_idx]
+
+        if current_action == ANIMAL_PLACEMENT:
+            ok, last_pose = place_random_animal()
+        elif current_action == BLOCK_PLACEMENT:
+            ok, last_pose = place_block(last_pose)
+
         if ok:
-            rospy.sleep(1)
+            rospy.sleep(random.uniform(0.7,1.5))
         else:
             rospy.sleep(0.1)
 
+        chance = random.random()
+        if chance > 0.9:
+            action_idx= (action_idx+1) % len(GAME_ACTIONS)
