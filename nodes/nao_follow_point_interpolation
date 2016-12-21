@@ -12,6 +12,7 @@ from nav_msgs.msg import Path
 import rospy
 import tf
 import motion
+import numpy
 
 # masks for which axes naoqi is to control with its planning
 axisMask=motion.AXIS_MASK_VEL
@@ -23,18 +24,20 @@ def clip(v, vmin, vmax):
     return max(min(v, vmax), vmin)
 
 
-def xyz2pantilt(pose, headframe="/HeadPitch_link"):
+def xyz2pantilt(pose, headframe="/Head"):
     """
     Convert a xyz target to pan and tilt angles for the head.
 
     :param headframe: the frame of the head
     :returns: (pan, tilt) in radians
     """
+    #tl.waitForTransform(headframe,pose.header.frame_id, rospy.Time.now(), rospy.Duration(1.0))
+    pose.header.stamp = tl.getLatestCommonTime(pose.header.frame_id, headframe)
     pose = tl.transformPose(headframe, pose)
     pan = numpy.arctan2(pose.pose.position.y, pose.pose.position.x)
     tilt = numpy.arctan2(pose.pose.position.z, pose.pose.position.x)
     
-    logger.debug("Computed head pan: %s, tilt: %s" % (pan, tilt))
+    rospy.loginfo("Computed head pan: %s, tilt: %s" % (pan, tilt))
     return (pan,tilt)
 
 def look_at(frame):
@@ -42,7 +45,7 @@ def look_at(frame):
     yaw = clip(yaw, -2.0857, 2.0857)
     pitch = clip(-pitch, -0.6720, 0.5149) #beware the '-pitch'!
     joints = ['HeadYaw','HeadPitch']
-    motionProxy.angleInterpolationWithSpeed(joints, [yaw, pitch], 0.1])
+    motionProxy.angleInterpolationWithSpeed(joints, [yaw, pitch], 0.1)
 
 
 def on_traj(traj):
@@ -50,22 +53,25 @@ def on_traj(traj):
 
     rospy.loginfo("got traj at "+str(rospy.Time.now())) 
     if(hasFallen == False): #no harm in executing trajectory
-        if(effector == "LArm"):
-            motionProxy.openHand("LHand");
-            roll = -1.7; #rotate wrist to the left (about the x axis, w.r.t. robot frame)
-        else:
-            motionProxy.openHand("RHand");
-            roll = 1.7; #rotate wrist to the right (about the x axis, w.r.t. robot frame)
+        #if(effector == "LArm"):
+        #    motionProxy.openHand("LHand");
+        #    roll = -1.7; #rotate wrist to the left (about the x axis, w.r.t. robot frame)
+        #else:
+        #    motionProxy.openHand("RHand");
+        #    roll = 1.7; #rotate wrist to the right (about the x axis, w.r.t. robot frame)
 
         target = PoseStamped()
 
         target_frame = traj.header.frame_id
         target.header.frame_id = target_frame
         
-        path = []; times = [];
-        for trajp in [traj.poses[0], traj.poses[-1]]:
+        look_at(traj.poses[0])
+	rospy.sleep(2)
+        look_at(traj.poses[-1])
 
-            look_at(trajp)
+#        path = []; times = [];
+#        for trajp in [traj.poses[0], traj.poses[-1]]:
+#
 #        
 #            trajp.pose.position.z = 0.0
 #
@@ -145,6 +151,7 @@ if __name__ == "__main__":
     fallResponder = FallResponder("fallResponder",motionProxy,memoryProxy);
     
     motionProxy.wbEnableEffectorControl(effector,False); #if robot has fallen it will have a hard time getting up if the effector is still trying to be kept in a particular position
+    motionProxy.wakeUp()
     postureProxy.goToPosture("StandInit", 0.5)
 
 
@@ -156,6 +163,7 @@ if __name__ == "__main__":
     while not rospy.is_shutdown():
         rospy.sleep(0.1)
 
-    postureProxy.goToPosture("Crouch", 0.5)
+
+    motionProxy.rest()
 
     myBroker.shutdown()
