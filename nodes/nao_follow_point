@@ -89,8 +89,6 @@ if __name__ == "__main__":
     memoryProxy = ALProxy("ALMemory", NAO_IP, port);
     postureProxy = ALProxy("ALRobotPosture", NAO_IP, port)
     fallResponder = FallResponder("fallResponder",motionProxy,memoryProxy);
-
-    poses_sub = rospy.Subscriber(POSES_TOPIC, PoseStamped, on_pose)
     
     motionProxy.wbEnableEffectorControl(effector,False); #if robot has fallen it will have a hard time getting up if the effector is still trying to be kept in a particular position
     postureProxy.goToPosture("StandInit", 0.2)
@@ -99,5 +97,11 @@ if __name__ == "__main__":
     motionProxy.wbEnableEffectorControl(effector,True);
     rospy.sleep(2)
 
-    rospy.spin()
+    poses_sub = rospy.Subscriber(POSES_TOPIC, PoseStamped, on_pose, queue_size=1) # queue size = 1 to discard all poses until I've finished my current pointing
+
+    while not rospy.is_shutdown():
+        rospy.sleep(0.1)
+
+    postureProxy.goToPosture("Crouch", 0.2)
+
     myBroker.shutdown()
