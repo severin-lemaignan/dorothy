@@ -5,6 +5,7 @@ Listens for a trajectory to write and sends it to the nao via naoqi SDK.
 Requires a running robot/simulation with ALNetwork proxies.
 
 """
+from copy import deepcopy
 from naoqi import ALModule, ALBroker, ALProxy
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
@@ -13,12 +14,8 @@ import tf
 import motion
 
 # masks for which axes naoqi is to control with its planning
-AXIS_MASK_X = 1
-AXIS_MASK_Y = 2
-AXIS_MASK_Z = 4
-AXIS_MASK_WX = 8
-AXIS_MASK_WY = 16
-AXIS_MASK_WZ = 32
+axisMask=motion.AXIS_MASK_VEL
+#axisMask=motion.AXIS_MASK_ALL
 
 tl = None
 
@@ -39,25 +36,10 @@ def on_traj(traj):
         target_frame = traj.header.frame_id
         target.header.frame_id = target_frame
         
-        '''
-        #go to first point then wait
         path = []; times = [];
-        trajStartPosition = traj.poses[0].pose.position;
-        traj.poses[0].pose.position.z = 0.05
-        target.pose.position = deepcopy(traj.poses[0].pose.position)
-        target.pose.orientation = deepcopy(traj.poses[0].pose.orientation)
-        trajStartPosition_robot = tl.transformPose("base_footprint",target)
-        point = [trajStartPosition_robot.pose.position.x,trajStartPosition_robot.pose.position.y,trajStartPosition_robot.pose.position.z,roll,0,0];
+        for trajp in [traj.poses[0], traj.poses[-1]]:
         
-        path.append(point);
-        timeToStartPosition = traj.poses[0].header.stamp.to_sec();
-        times.append(timeToStartPosition);
-        motionProxy.setPosition(effector,space,point,0.5,axisMask);#,times,isAbsolute);
-        '''
-        path = []; times = [];
-        for trajp in traj.poses:
-        
-            trajp.pose.position.z = 0.05
+            trajp.pose.position.z = 0.0
 
             #print(trajp.pose.position)
             #print("-")
@@ -75,11 +57,12 @@ def on_traj(traj):
         
         #wait until time instructed to start executing
         rospy.sleep(traj.header.stamp-rospy.Time.now())#+rospy.Duration(timeToStartPosition));
-        rospy.loginfo("Executing traj at "+str(rospy.Time.now()) + ". First point is: (" + str(int(path[0][0]*100)) + "cm, " + str(int(path[0][1]*100)) + "cm) from footprint") ;
+        rospy.loginfo("Executing traj at "+str(rospy.Time.now().to_sec()) + ". Traj: " + str(path) + " (from footprint)") ;
+        rospy.loginfo("Duration requested for this motion: "+str(times));
         startTime = rospy.Time.now();
 
         motionProxy.positionInterpolations([effector],[motion.FRAME_ROBOT],[path],[axisMask],[times]);
-        rospy.loginfo("Time taken for rest of trajectory: "+str((rospy.Time.now()-startTime).to_sec()));
+        rospy.loginfo("Actual motion duration: "+str((rospy.Time.now()-startTime).to_sec()));
 
     else:
         rospy.loginfo("Got traj but not allowed to execute it because I've fallen");
@@ -134,10 +117,10 @@ if __name__ == "__main__":
     fallResponder = FallResponder("fallResponder",motionProxy,memoryProxy);
     
     motionProxy.wbEnableEffectorControl(effector,False); #if robot has fallen it will have a hard time getting up if the effector is still trying to be kept in a particular position
-    postureProxy.goToPosture("StandInit", 0.2)
+    postureProxy.goToPosture("StandInit", 0.5)
 
 
-    motionProxy.wbEnableEffectorControl(effector,True);
+    motionProxy.wbEnableEffectorControl(effector,False);
     rospy.sleep(2)
 
     pub_traj = rospy.Subscriber(TRAJ_TOPIC, Path, on_traj)
@@ -145,6 +128,6 @@ if __name__ == "__main__":
     while not rospy.is_shutdown():
         rospy.sleep(0.1)
 
-    postureProxy.goToPosture("Crouch", 0.2)
+    postureProxy.goToPosture("Crouch", 0.5)
 
     myBroker.shutdown()
