@@ -19,6 +19,32 @@ axisMask=motion.AXIS_MASK_VEL
 
 tl = None
 
+def clip(v, vmin, vmax):
+    return max(min(v, vmax), vmin)
+
+
+def xyz2pantilt(pose, headframe="/HeadPitch_link"):
+    """
+    Convert a xyz target to pan and tilt angles for the head.
+
+    :param headframe: the frame of the head
+    :returns: (pan, tilt) in radians
+    """
+    pose = tl.transformPose(headframe, pose)
+    pan = numpy.arctan2(pose.pose.position.y, pose.pose.position.x)
+    tilt = numpy.arctan2(pose.pose.position.z, pose.pose.position.x)
+    
+    logger.debug("Computed head pan: %s, tilt: %s" % (pan, tilt))
+    return (pan,tilt)
+
+def look_at(frame):
+    yaw, pitch = xyz2pantilt(frame)
+    yaw = clip(yaw, -2.0857, 2.0857)
+    pitch = clip(-pitch, -0.6720, 0.5149) #beware the '-pitch'!
+    joints = ['HeadYaw','HeadPitch']
+    motionProxy.angleInterpolationWithSpeed(joints, [yaw, pitch], 0.1])
+
+
 def on_traj(traj):
     global tl
 
@@ -38,31 +64,33 @@ def on_traj(traj):
         
         path = []; times = [];
         for trajp in [traj.poses[0], traj.poses[-1]]:
-        
-            trajp.pose.position.z = 0.0
 
-            #print(trajp.pose.position)
-            #print("-")
-
-            target.pose.position = deepcopy(trajp.pose.position)
-            #target.pose.orientation = deepcopy(trajp.pose.orientation)
-            target_robot = tl.transformPose("/base_footprint",target)
-
-            #print(target_robot.pose.position)
-            #print("---")
-
-            point = [target_robot.pose.position.x,target_robot.pose.position.y,target_robot.pose.position.z,roll,0,0]#roll,pitch,yaw];
-            path.append(point);
-            times.append(trajp.header.stamp.to_sec() )#- timeToStartPosition);
-        
-        #wait until time instructed to start executing
-        rospy.sleep(traj.header.stamp-rospy.Time.now())#+rospy.Duration(timeToStartPosition));
-        rospy.loginfo("Executing traj at "+str(rospy.Time.now().to_sec()) + ". Traj: " + str(path) + " (from footprint)") ;
-        rospy.loginfo("Duration requested for this motion: "+str(times));
-        startTime = rospy.Time.now();
-
-        motionProxy.positionInterpolations([effector],[motion.FRAME_ROBOT],[path],[axisMask],[times]);
-        rospy.loginfo("Actual motion duration: "+str((rospy.Time.now()-startTime).to_sec()));
+            look_at(trajp)
+#        
+#            trajp.pose.position.z = 0.0
+#
+#            #print(trajp.pose.position)
+#            #print("-")
+#
+#            target.pose.position = deepcopy(trajp.pose.position)
+#            #target.pose.orientation = deepcopy(trajp.pose.orientation)
+#            target_robot = tl.transformPose("/base_footprint",target)
+#
+#            #print(target_robot.pose.position)
+#            #print("---")
+#
+#            point = [target_robot.pose.position.x,target_robot.pose.position.y,target_robot.pose.position.z,roll,0,0]#roll,pitch,yaw];
+#            path.append(point);
+#            times.append(trajp.header.stamp.to_sec() )#- timeToStartPosition);
+#        
+#        #wait until time instructed to start executing
+#        rospy.sleep(traj.header.stamp-rospy.Time.now())#+rospy.Duration(timeToStartPosition));
+#        rospy.loginfo("Executing traj at "+str(rospy.Time.now().to_sec()) + ". Traj: " + str(path) + " (from footprint)") ;
+#        rospy.loginfo("Duration requested for this motion: "+str(times));
+#        startTime = rospy.Time.now();
+#
+#        motionProxy.positionInterpolations([effector],[motion.FRAME_ROBOT],[path],[axisMask],[times]);
+#        rospy.loginfo("Actual motion duration: "+str((rospy.Time.now()-startTime).to_sec()));
 
     else:
         rospy.loginfo("Got traj but not allowed to execute it because I've fallen");
