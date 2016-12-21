@@ -224,11 +224,13 @@ def get_point_in_zone(zone):
         x+=dx
         y+=dy
 
+    x,y = x/len(poly), y/len(poly)
+
     if distance_to_robot((x,y)) > ARM_REACH:
         return None
         #TODO: we should try to find another point in the zone, within reach!
 
-    return Point(x=x/len(poly), y=y/len(poly))
+    return Point(x=x, y=y)
 
 def place_random_animal():
 
