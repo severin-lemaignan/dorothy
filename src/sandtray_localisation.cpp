@@ -40,7 +40,8 @@ void onSignal(ros::NodeHandle& rosNode, shared_ptr<tf::TransformListener> tl, sh
     // Re-compute the *current* transformation between the camera and the reference frame
     tf::StampedTransform camera_to_reference;
 
-    tl->lookupTransform(referenceFrame, detector->camera_frame, ros::Time(0), camera_to_reference);
+    tl->waitForTransform(referenceFrame, detector->camera_frame, ros::Time(), ros::Duration(1));
+    tl->lookupTransform(referenceFrame, detector->camera_frame, ros::Time(), camera_to_reference);
 
     // store the final transform sandtray -> reference frame
     target_transform.mult(camera_to_reference, detector->transform);
@@ -65,7 +66,7 @@ int main(int argc, char* argv[])
     _private_node.param<string>("signaling_topic", signalingTopic, "sandtray_localising");
 
     _private_node.param<string>("target_frame", targetFrame, "sandtray");
-    _private_node.param<string>("reference_frame", referenceFrame, "base_footprint");
+    _private_node.param<string>("reference_frame", referenceFrame, "odom");
     string markerId;
     _private_node.param<string>("marker_id", markerId, "709");
     string markerSize;
@@ -102,7 +103,7 @@ int main(int argc, char* argv[])
                 tf::StampedTransform(target_transform, 
                                      ros::Time::now(), 
                                      referenceFrame,
-//                                     detector->camera_frame,
+//                                   detector->camera_frame,
                                      targetFrame));
 
         }
